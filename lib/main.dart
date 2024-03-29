@@ -1,5 +1,5 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+//import 'dart:math';
 
 
 
@@ -78,8 +78,8 @@ class _MyHomePageState extends State<MyHomePage> {
     do {
       len = s1.length;
 
-      if (ret.length > 0) {
-        ret = " " + ret;
+      if (ret.isNotEmpty) {
+        ret = " $ret";
       }
       ret = s1.substring(len - 4) + ret;
       s1 = s1.substring(len - 4);
@@ -87,7 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     len = 4 - len;
     while (len > 0) {
-      ret = "0" + ret;
+      ret = "0$ret";
       len--;
     }
 
@@ -250,6 +250,12 @@ class _MyHomePageState extends State<MyHomePage> {
     return ret;
   }
 
+  String _asciiSub(String s1, String s2)  { return "0"; }
+  
+  String _asciiMult(String s1, String s2)  { return "0"; }
+  
+  String _asciiDiv(String s1, String s2)  { return "0"; }
+  
   String _asciiAnd(String s1, String s2)  {
     String ret = "";
     int idx1 = s1.length - 1;
@@ -476,7 +482,27 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _keyPressedEquals() {
-    _storeOperator("=");
+    switch (_operator)  {
+      case '+':
+        _res = _asciiAdd(_op1, _op2);
+      case '-':
+        _res = _asciiSub(_op1, _op2);
+      case '*':
+        _res = _asciiMult(_op1, _op2);
+      case '/':
+        _res = _asciiDiv(_op1, _op2);
+      case '&':
+        _res = _asciiAnd(_op1, _op2);
+      case '|':
+        _res = _asciiOr(_op1, _op2);
+      case '^':
+        _res = _asciiXor(_op1, _op2);
+      case '~':
+        _res = _asciiNot(_op1);
+      default:
+        _res = _op1;
+    }
+    _op1 = _res;
   }
 
   void _keyPressedDummy() {}
@@ -498,17 +524,23 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Wigdget _genDisplayLine(const String label, String varValue) {
+  Widget _genDisplayLine(String label, String varValue) {
+    const defaultTS = TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+      color: Colors.black,
+    );
+
     return DefaultTextStyle(
         style: defaultTS,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              label,
+              Text(label),
               Expanded(
                 child: Text(
-                  varValue,
+                  _asciiInsertSeparators(varValue),
                   textAlign: TextAlign.right,
                 ),
               ),
@@ -520,12 +552,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    const defaultTS = TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.bold,
-      color: Colors.black,
-    );
-
     return Scaffold(
       backgroundColor: const Color.fromARGB(0xff, 0x80, 0xc0, 0xe0),
       appBar: AppBar(
@@ -536,10 +562,10 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            _genDisplayLine(const Text("M"), '$_regM'),
-            _genDisplayLine(const Text("Op1"), '$_op1'),
-            _genDisplayLine(const Text("Op2"), '$_op2'),
-            _genDisplayLine(const Text("Result"), '$_res'),
+            _genDisplayLine('M', _regM),
+            _genDisplayLine('Op1', _op1),
+            _genDisplayLine('Op2', _op2),
+            _genDisplayLine('Result', _res),
             //
             const Expanded(
               child: Text(" "),
@@ -602,13 +628,6 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
       ),
-/*
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-*/
     );
   }
 }
