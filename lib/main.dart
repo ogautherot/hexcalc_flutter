@@ -1,13 +1,7 @@
-//import 'dart:js';
-//import 'dart:ui';
-
-import 'dart:ffi';
-
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-//import 'package:flutter/painting.dart';
-//import 'package:flutter/rendering.dart';
-//mport 'package:flutter/widgets.dart';
+
+
 
 void main() {
   runApp(const MyApp());
@@ -39,31 +33,315 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
+// App body
 class _MyHomePageState extends State<MyHomePage> {
   String _regM = "0";
   String _op1 = "0";
   String _op2 = "0";
   String _res = "0";
+  String _operator = "";
+  int _currentOperand = 1;
+  int _signExtend = 0;
 
-  void _incrementCounter() {
+  void _keyPressed(String key) {
     setState(() {
-      _regM = "0";
+      if (_currentOperand == 1) {
+        _op1 += key;
+      } else {
+        _op2 += key;
+      }
     });
   }
 
-  void _keyPressed(String key) {}
+  // ******** Generic API ********
 
-  void _trimOperand() {}
+  /**  Perform a backspace on the given variable value
+   *
+   *  @param  str   Input string
+   *
+   *  @return       Input string without the last character. If the string is empty, return "0"
+   */
+  String _removeLastChar(String str)  {
+    return (str.length == 1) ? "0" : str.substring(0, str.length - 1);
+  }
 
-  void _operator(String op) {}
+  /** Insert spaces between groups of 4 hex digits
+   *
+   * @param s1    Input string (assumed to be compact) 
+   *
+   * @return      Processed string
+   */
+  String _asciiInsertSeparators(String s1)  {
+    String ret = "";
+    int len = 0;
 
-  void _clearReg() {}
+    do {
+      len = s1.length;
+
+      if (ret.length > 0) {
+        ret = " " + ret;
+      }
+      ret = s1.substring(len - 4) + ret;
+      s1 = s1.substring(len - 4);
+    } while (len > 4);
+
+    len = 4 - len;
+    while (len > 0) {
+      ret = "0" + ret;
+      len--;
+    }
+
+    return ret;
+  }
+
+  /** Shift nibbles to the left
+   *
+   * @param s1      Input value
+   * @param shifts  Number of null nibbles to store on the left
+   *
+   * @return        Processed string
+   */
+  String _asciiNibbleShiftLeft(String s1, int shifts)  {
+    while (shifts > 0)  {
+      s1 += "0";
+      shifts--;
+    }
+    return s1;
+  }
+
+  /** Shift an arbitrary number of bits to the left. When shifts is beyond 4,
+   *  the nibbles are added 1 at a time to speed up the process.
+   *
+   * @param s1      Input value
+   * @param shifts  Number of bits to shift to the left
+   *
+   * @return        Processed value
+   */
+  String _asciiLogicalShiftLeft(String s1, int myShifts)  {
+    String ret = "";
+    int nibbles = myShifts ~/ 4;
+    const int myRadix = 16;
+
+    if (s1 == "") {
+      s1 = "0";
+    }
+
+    myShifts -= nibbles * 4;
+    if (myShifts > 0)  {
+      int i = s1.length - 1;
+      int carry = 0;
+      int factor = 1 << myShifts;
+
+      while ((i >= 0) && (carry > 0))  {
+        int digit = (i >= 0) ? int.parse(s1[i], radix: myRadix) * factor : 0;
+        carry = digit ~/ myRadix;
+        digit -= carry * myRadix;
+        ret = digit.toRadixString(myRadix) + ret;
+        i--;
+      }
+    }
+
+    while (nibbles > 0) {
+      ret += "0";
+      nibbles--;
+    }
+
+    return ret;
+  }
+
+  String _asciiBinaryTrimLeft(String str) {
+    int i = 0;
+    int len = str.length;
+    String ret = "";
+
+    while ((i < len) && (str[i] == '0')) {
+      i++;
+    }
+    ret = str.substring(i);
+
+    return ret;
+  }
+
+  int _asciiCompare(String s1, String s2)  {
+    String str1 = _asciiBinaryTrimLeft(s1);
+    String str2 = _asciiBinaryTrimLeft(s2);
+    const int myRadix = 16;
+
+    if (str1.length > str2.length)  {
+      return 1;
+    } else if (str1.length < str2.length)  {
+      return -1;
+    }
+
+    int len = str1.length;
+    int i = 0;
+
+    while (i < len) {
+      int digit1 = int.parse(str1[i], radix: myRadix);
+      int digit2 = int.parse(str2[i], radix: myRadix);
+
+      if (digit1 > digit2)  {
+        return 1;
+      } else if (digit1 < digit2) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+
+  /** Multiply an arbitrary number by a nibble-wide factor. This method
+   * prepares the implementation of a multiply of arbitrary length.
+   *
+   * @param s1      Input value
+   * @param factor  Multiplying factor
+   *
+   * @return        Processed value
+   */
+  String _asciiNibbleMult(String s1, int factor, int nibbleShifts)  {
+    int carry = 0;
+    int i = s1.length - 1;
+    String ret = "";
+    const int myRadix = 16;
+
+    if (s1 == "")  {
+      s1 = "0";
+    }
+
+    while ((i >= 0) || (carry > 0))  {
+      int digit = (i >= 0) ? int.parse(s1[i], radix: myRadix) * factor : 0;
+      int res = digit * factor + carry;
+
+      carry = res ~/ myRadix;
+      res -= carry * myRadix;
+      ret = res.toRadixString(myRadix) + ret;
+      i--;
+    }
+
+    while (nibbleShifts > 0)  {
+      ret += "0";
+      nibbleShifts--;
+    }
+
+    return ret;
+  }
+
+  String _asciiAdd(String s1, String s2) {
+    String ret = "";
+    int idx1 = s1.length - 1;
+    int idx2 = s2.length - 1;
+    int carry = 0;
+    const int myRadix = 16;
+
+    while ((idx1 >= 0) || (idx2 >= 0) || (carry > 0)) {
+      int digit1 = (idx1 >= 0) ? int.parse(s1[idx1], radix: myRadix) : 0;
+      int digit2 = (idx2 >= 0) ? int.parse(s2[idx2], radix: myRadix) : 0;
+      int mySum = digit1 + digit2 + carry;
+
+      carry = mySum ~/ myRadix;
+      ret = mySum.toRadixString(myRadix) + ret;
+      idx1--;
+      idx2--;
+    }
+
+    if (ret == "")  {
+      ret = "0";
+    }
+
+    return ret;
+  }
+
+  String _asciiAnd(String s1, String s2)  {
+    String ret = "";
+    int idx1 = s1.length - 1;
+    int idx2 = s2.length - 1;
+    const int myRadix = 16;
+
+    while ((idx1 >= 0) || (idx2 >= 0))  {
+      int digit1 = (idx1 >= 0) ? int.parse(s1[idx1], radix: myRadix) : 0;
+      int digit2 = (idx2 >= 0) ? int.parse(s2[idx2], radix: myRadix) : 0;
+
+      ret = (digit1 & digit2).toRadixString(myRadix) + ret;
+    }
+
+    return ret;
+  }
+
+  String _asciiOr(String s1, String s2)  {
+    String ret = "";
+    int idx1 = s1.length - 1;
+    int idx2 = s2.length - 1;
+    const int myRadix = 16;
+
+    while ((idx1 >= 0) || (idx2 >= 0))  {
+      int digit1 = (idx1 >= 0) ? int.parse(s1[idx1], radix: myRadix) : 0;
+      int digit2 = (idx2 >= 0) ? int.parse(s2[idx2], radix: myRadix) : 0;
+
+      ret = (digit1 | digit2).toRadixString(myRadix) + ret;
+    }
+
+    return ret;
+  }
+
+  String _asciiXor(String s1, String s2)  {
+    String ret = "";
+    int idx1 = s1.length - 1;
+    int idx2 = s2.length - 1;
+    const int myRadix = 16;
+
+    while ((idx1 >= 0) || (idx2 >= 0))  {
+      int digit1 = (idx1 >= 0) ? int.parse(s1[idx1], radix: myRadix) : 0;
+      int digit2 = (idx2 >= 0) ? int.parse(s2[idx2], radix: myRadix) : 0;
+
+      ret = (digit1 ^ digit2).toRadixString(myRadix) + ret;
+    }
+
+    return ret;
+  }
+
+  String _asciiNot(String s1)  {
+    String ret = "";
+    int idx1 = s1.length - 1;
+    const int myRadix = 16;
+
+    while (idx1 >= 0)  {
+      int digit1 = (idx1 >= 0) ? int.parse(s1[idx1], radix: myRadix) : 0;
+
+      ret = ((~digit1) & 0xff).toRadixString(myRadix) + ret;
+    }
+
+    return ret;
+  }
+
+
+
+  // ******** App objects maintenance ********
+
+  /** Register operator and switch operand for the input
+   *
+   * @param op    OPerator to store
+  */
+  void _storeOperator(String op) {
+    _operator = op;
+    _currentOperand = 2;
+  }
+
+  // Reset the operands - DELETE key
+  void _clearReg() {
+    setState(() {
+      _op1 = "0";
+      _op2 = "0";
+    });
+  }
 
   void _memAdd() {}
 
   void _memMinus() {}
 
-  void _memClear() {}
+  void _memClear() {
+    setState(() {
+      _regM = "0";
+    });
+  }
 
   void _memRecall() {}
 
@@ -132,39 +410,45 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _backSpace() {
-    _trimOperand();
+    setState(() {
+      if (_currentOperand == 1) {
+        _op1 = _removeLastChar(_op1);
+      } else {
+        _op2 = _removeLastChar(_op2);
+      }
+    });
   }
 
   void _keyPressedPlus() {
-    _operator("+");
+    _storeOperator("+");
   }
 
   void _keyPressedMinus() {
-    _operator("-");
+    _storeOperator("-");
   }
 
   void _keyPressedMult() {
-    _operator("*");
+    _storeOperator("*");
   }
 
   void _keyPressedDivide() {
-    _operator("/");
+    _storeOperator("/");
   }
 
   void _keyPressedAnd() {
-    _operator("&");
+    _storeOperator("&");
   }
 
   void _keyPressedOr() {
-    _operator("|");
+    _storeOperator("|");
   }
 
   void _keyPressedXor() {
-    _operator("^");
+    _storeOperator("^");
   }
 
   void _keyPressedNot() {
-    _operator("!");
+    _storeOperator("!");
   }
 
   void _keyPressedDel() {
@@ -192,7 +476,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _keyPressedEquals() {
-    _operator("=");
+    _storeOperator("=");
   }
 
   void _keyPressedDummy() {}
@@ -214,6 +498,26 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  Wigdget _genDisplayLine(const String label, String varValue) {
+    return DefaultTextStyle(
+        style: defaultTS,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              label,
+              Expanded(
+                child: Text(
+                  varValue,
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     const defaultTS = TextStyle(
@@ -232,77 +536,10 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            DefaultTextStyle(
-              style: defaultTS,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    const Text("M"),
-                    Expanded(
-                      child: Text(
-                        '$_regM',
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            //
-            DefaultTextStyle(
-              style: defaultTS,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    const Text("Op1"),
-                    Expanded(
-                      child: Text(
-                        '$_op1',
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            //
-            DefaultTextStyle(
-              style: defaultTS,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    const Text("Op2"),
-                    Expanded(
-                      child: Text(
-                        '$_op2',
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            //
-            DefaultTextStyle(
-              style: defaultTS,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    const Text("Result"),
-                    Expanded(
-                      child: Text(
-                        '$_res',
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _genDisplayLine(const Text("M"), '$_regM'),
+            _genDisplayLine(const Text("Op1"), '$_op1'),
+            _genDisplayLine(const Text("Op2"), '$_op2'),
+            _genDisplayLine(const Text("Result"), '$_res'),
             //
             const Expanded(
               child: Text(" "),
